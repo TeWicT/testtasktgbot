@@ -1,0 +1,48 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: expenses-postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data2:/var/lib/postgresql
+      - ./postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  bot:
+    build:
+      context: ../services/bot
+      dockerfile: deploy/docker/bot.Dockerfile
+    container_name: expenses-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${BOT_PORT}:3000"
+      - "${API_PORT}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  front:
+    build:
+      context: ../services/front
+      dockerfile: deploy/docker/front.Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL}
+    container_name: expenses-front
+    restart: unless-stopped
+    ports:
+      - "${FRONT_PORT}:80"
+    depends_on:
+      - bot
+
+volumes:
+  postgres_data2:

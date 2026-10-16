@@ -1,0 +1,4 @@
+
+CREATE DATABASE expenses IF NOT EXISTS;
+
+
