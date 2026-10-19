@@ -162,6 +162,15 @@ function todayMoscow() {
   }).format(new Date());
 }
 
+/** API хранит сумму в копейках. */
+function rublesToKopecks(rubles) {
+  return Math.round(Number(rubles) * 100);
+}
+
+function formatRubles(kopecks) {
+  return `${(Number(kopecks) / 100).toFixed(2)} ₽`;
+}
+
 function setStatus(msg, isError = false) {
   statusEl.textContent = msg || "";
   statusEl.classList.toggle("error", isError);
@@ -247,7 +256,7 @@ function render() {
     const cells = [
       e.spent_at,
       String(e.user_id),
-      `${Number(e.amount).toFixed(2)} ₽`,
+      formatRubles(e.amount),
       e.category,
       e.comment ?? "",
     ];
@@ -311,8 +320,7 @@ async function load(page = state.page) {
     state.total = Number(data.total ?? 0);
     state.totalPages = Number(data.total_pages ?? 0);
     render();
-    const sum = Number(sumData.sum ?? 0);
-    totalEl.textContent = `Итого по фильтрам: ${sum.toFixed(2)} ₽`;
+    totalEl.textContent = `Итого по фильтрам: ${formatRubles(sumData.sum ?? 0)}`;
     setStatus(`Показано: ${state.items.length}`);
   } catch (err) {
     setStatus(err.message, true);
@@ -343,11 +351,15 @@ createForm.addEventListener("submit", async (ev) => {
   const fd = new FormData(createForm);
   const body = {
     user_id: Number(fd.get("user_id")),
-    amount: Number(fd.get("amount")),
+    amount: rublesToKopecks(fd.get("amount")),
     category: String(fd.get("category")),
     spent_at: String(fd.get("spent_at")),
     comment: String(fd.get("comment") || "").trim() || null,
   };
+  if (body.amount <= 0) {
+    setStatus("Сумма должна быть больше 0", true);
+    return;
+  }
   try {
     await api.createExpense(body);
     createForm.reset();
@@ -386,7 +398,7 @@ tbody.addEventListener("click", async (ev) => {
 
   if (btn.classList.contains("btn-edit")) {
     state.editing = item;
-    editForm.amount.value = item.amount;
+    editForm.amount.value = (Number(item.amount) / 100).toFixed(2);
     editForm.category.value = item.category;
     editForm.spent_at.value = item.spent_at;
     editForm.comment.value = item.comment ?? "";
@@ -404,11 +416,15 @@ editForm.addEventListener("submit", async (ev) => {
   if (!state.editing) return;
   const fd = new FormData(editForm);
   const body = {
-    amount: Number(fd.get("amount")),
+    amount: rublesToKopecks(fd.get("amount")),
     category: String(fd.get("category")),
     spent_at: String(fd.get("spent_at")),
     comment: String(fd.get("comment") || "").trim() || null,
   };
+  if (body.amount <= 0) {
+    setStatus("Сумма должна быть больше 0", true);
+    return;
+  }
   try {
     await api.updateExpense(state.editing.id, body);
     state.editing = null;

@@ -15,7 +15,7 @@ CREATE TYPE expense_category AS ENUM (
 CREATE TABLE expenses (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id     BIGINT NOT NULL,
-    amount      NUMERIC(12, 2) NOT NULL,
+    amount      BIGINT NOT NULL, -- сумма в копейках
     category    expense_category NOT NULL DEFAULT 'другое',
     spent_at    DATE NOT NULL,
     comment     TEXT,

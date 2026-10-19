@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"expenses/bot/internal/domain"
+	"expenses/bot/internal/money"
 	"expenses/bot/internal/repository"
 
 	"github.com/google/uuid"
@@ -38,8 +39,9 @@ func (c *Client) execAddExpense(ctx context.Context, userID int64, raw string, n
 	if err := json.Unmarshal([]byte(raw), &args); err != nil {
 		return "", fmt.Errorf("invalid arguments: %w", err)
 	}
-	if args.Amount <= 0 {
-		return "", fmt.Errorf("amount must be positive")
+	amount, err := money.RublesToKopecks(args.Amount)
+	if err != nil {
+		return "", err
 	}
 	if _, ok := allowedCategories[args.Category]; !ok {
 		return "", fmt.Errorf("unknown category %q", args.Category)
@@ -57,7 +59,7 @@ func (c *Client) execAddExpense(ctx context.Context, userID int64, raw string, n
 
 	exp, err := c.repo.Create(ctx, domain.CreateExpense{
 		UserID:   userID,
-		Amount:   args.Amount,
+		Amount:   amount,
 		Category: args.Category,
 		SpentAt:  spentAt,
 		Comment:  comment,
@@ -103,7 +105,11 @@ func (c *Client) execSumExpenses(ctx context.Context, userID int64, raw string, 
 	if err != nil {
 		return "", err
 	}
-	return toJSON(map[string]any{"sum": sum, "currency": "RUB"}), nil
+	return toJSON(map[string]any{
+		"sum_kopecks": sum,
+		"sum_rubles":  money.KopecksToRubles(sum),
+		"currency":    "RUB",
+	}), nil
 }
 
 func (c *Client) execUpdateLatest(ctx context.Context, userID int64, raw string, now time.Time) (string, error) {
@@ -117,7 +123,7 @@ func (c *Client) execUpdateLatest(ctx context.Context, userID int64, raw string,
 		return "", err
 	}
 
-	in, err := c.buildUpdate(args.Amount, args.Category, args.Date, args.Comment, now)
+	in, err := c.buildUpdate(args.Amount, args.Category, args.Date, args.Comment, args.commentSet, now)
 	if err != nil {
 		return "", err
 	}
@@ -139,7 +145,7 @@ func (c *Client) execUpdateExpense(ctx context.Context, userID int64, raw string
 		return "", fmt.Errorf("invalid id")
 	}
 
-	in, err := c.buildUpdate(args.Amount, args.Category, args.Date, args.Comment, now)
+	in, err := c.buildUpdate(args.Amount, args.Category, args.Date, args.Comment, args.commentSet, now)
 	if err != nil {
 		return "", err
 	}
@@ -209,10 +215,14 @@ func (c *Client) execDeleteExpense(ctx context.Context, userID int64, raw string
 	return "", repository.ErrNotFound
 }
 
-func (c *Client) buildUpdate(amount *float64, category, date string, comment *string, now time.Time) (domain.UpdateExpense, error) {
-	in := domain.UpdateExpense{Amount: amount, Comment: comment}
-	if amount != nil && *amount <= 0 {
-		return in, fmt.Errorf("amount must be positive")
+func (c *Client) buildUpdate(amount *float64, category, date string, comment *string, commentSet bool, now time.Time) (domain.UpdateExpense, error) {
+	in := domain.UpdateExpense{Comment: comment, CommentSet: commentSet}
+	if amount != nil {
+		kopecks, err := money.RublesToKopecks(*amount)
+		if err != nil {
+			return in, err
+		}
+		in.Amount = &kopecks
 	}
 	if category != "" {
 		if _, ok := allowedCategories[category]; !ok {
@@ -260,11 +270,12 @@ func expenseView(e *domain.Expense) map[string]any {
 		comment = *e.Comment
 	}
 	return map[string]any{
-		"id":       e.ID.String(),
-		"amount":   e.Amount,
-		"category": e.Category,
-		"spent_at": e.SpentAt.Format("2006-01-02"),
-		"comment":  comment,
+		"id":            e.ID.String(),
+		"amount_kopecks": e.Amount,
+		"amount_rubles": money.KopecksToRubles(e.Amount),
+		"category":      e.Category,
+		"spent_at":      e.SpentAt.Format("2006-01-02"),
+		"comment":       comment,
 	}
 }
 

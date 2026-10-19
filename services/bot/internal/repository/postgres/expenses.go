@@ -156,16 +156,16 @@ func (r *ExpensesRepo) UpdateForUser(ctx context.Context, userID int64, id uuid.
 	const q = `
 		UPDATE expenses
 		SET
-			amount    = COALESCE($1, amount),
-			category  = COALESCE($2, category),
-			spent_at  = COALESCE($3, spent_at),
-			comment   = COALESCE($4, comment),
+			amount     = COALESCE($1, amount),
+			category   = COALESCE($2, category),
+			spent_at   = COALESCE($3, spent_at),
+			comment    = CASE WHEN $5 THEN $4 ELSE comment END,
 			updated_at = now()
-		WHERE id = $5 AND user_id = $6
+		WHERE id = $6 AND user_id = $7
 		RETURNING id, user_id, amount, category, spent_at, comment, created_at, updated_at
 	`
 	exp, err := scanExpense(r.pool.QueryRow(ctx, q,
-		in.Amount, in.Category, in.SpentAt, in.Comment, id, userID,
+		in.Amount, in.Category, in.SpentAt, in.Comment, in.CommentSet, id, userID,
 	))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, repository.ErrNotFound
@@ -177,16 +177,16 @@ func (r *ExpensesRepo) Update(ctx context.Context, id uuid.UUID, in domain.Updat
 	const q = `
 		UPDATE expenses
 		SET
-			amount    = COALESCE($1, amount),
-			category  = COALESCE($2, category),
-			spent_at  = COALESCE($3, spent_at),
-			comment   = COALESCE($4, comment),
+			amount     = COALESCE($1, amount),
+			category   = COALESCE($2, category),
+			spent_at   = COALESCE($3, spent_at),
+			comment    = CASE WHEN $5 THEN $4 ELSE comment END,
 			updated_at = now()
-		WHERE id = $5
+		WHERE id = $6
 		RETURNING id, user_id, amount, category, spent_at, comment, created_at, updated_at
 	`
 	exp, err := scanExpense(r.pool.QueryRow(ctx, q,
-		in.Amount, in.Category, in.SpentAt, in.Comment, id,
+		in.Amount, in.Category, in.SpentAt, in.Comment, in.CommentSet, id,
 	))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, repository.ErrNotFound
@@ -233,10 +233,10 @@ func (r *ExpensesRepo) Latest(ctx context.Context, userID int64) (*domain.Expens
 	return exp, err
 }
 
-func (r *ExpensesRepo) Sum(ctx context.Context, f domain.ListFilter) (float64, error) {
+func (r *ExpensesRepo) Sum(ctx context.Context, f domain.ListFilter) (int64, error) {
 	where, args := buildWhere(f)
 	q := `SELECT COALESCE(SUM(amount), 0) FROM expenses ` + where
-	var sum float64
+	var sum int64
 	if err := r.pool.QueryRow(ctx, q, args...).Scan(&sum); err != nil {
 		return 0, err
 	}

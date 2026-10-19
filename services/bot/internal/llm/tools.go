@@ -25,18 +25,50 @@ type listArgs struct {
 }
 
 type updateLatestArgs struct {
-	Amount   *float64 `json:"amount"`
-	Category string   `json:"category"`
-	Date     string   `json:"date"`
-	Comment  *string  `json:"comment"`
+	Amount     *float64 `json:"amount"`
+	Category   string   `json:"category"`
+	Date       string   `json:"date"`
+	Comment    *string  `json:"comment"`
+	commentSet bool
+}
+
+func (a *updateLatestArgs) UnmarshalJSON(data []byte) error {
+	type alias updateLatestArgs
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	var tmp alias
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+	*a = updateLatestArgs(tmp)
+	_, a.commentSet = raw["comment"]
+	return nil
 }
 
 type updateArgs struct {
-	ID       string   `json:"id"`
-	Amount   *float64 `json:"amount"`
-	Category string   `json:"category"`
-	Date     string   `json:"date"`
-	Comment  *string  `json:"comment"`
+	ID         string   `json:"id"`
+	Amount     *float64 `json:"amount"`
+	Category   string   `json:"category"`
+	Date       string   `json:"date"`
+	Comment    *string  `json:"comment"`
+	commentSet bool
+}
+
+func (a *updateArgs) UnmarshalJSON(data []byte) error {
+	type alias updateArgs
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	var tmp alias
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+	*a = updateArgs(tmp)
+	_, a.commentSet = raw["comment"]
+	return nil
 }
 
 type deleteArgs struct {
@@ -76,7 +108,7 @@ func tools() []openai.Tool {
 				Parameters: json.RawMessage(fmt.Sprintf(`{
 					"type": "object",
 					"properties": {
-						"amount": {"type": "number", "description": "Сумма в рублях"},
+						"amount": {"type": "number", "description": "Сумма в рублях (например 350 или 12.50)"},
 						"category": {"type": "string", "enum": %s},
 						"date": {"type": "string", "description": "YYYY-MM-DD, today или yesterday"},
 						"comment": {"type": "string", "description": "Краткое описание, например кофе"}

@@ -24,5 +24,5 @@ type ExpenseRepo interface {
 	Update(ctx context.Context, id uuid.UUID, in domain.UpdateExpense) (*domain.Expense, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	Latest(ctx context.Context, userID int64) (*domain.Expense, error)
-	Sum(ctx context.Context, f domain.ListFilter) (float64, error)
+	Sum(ctx context.Context, f domain.ListFilter) (int64, error)
 }

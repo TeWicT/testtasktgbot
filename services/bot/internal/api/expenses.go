@@ -39,7 +39,7 @@ func NewExpensesHandler(repo repository.ExpenseRepo, loc *time.Location) *Expens
 type expenseDTO struct {
 	ID        string  `json:"id"`
 	UserID    int64   `json:"user_id"`
-	Amount    float64 `json:"amount"`
+	Amount    int64   `json:"amount"` // копейки
 	Category  string  `json:"category"`
 	SpentAt   string  `json:"spent_at"`
 	Comment   *string `json:"comment,omitempty"`
@@ -49,17 +49,34 @@ type expenseDTO struct {
 
 type createExpenseRequest struct {
 	UserID   int64   `json:"user_id"`
-	Amount   float64 `json:"amount"`
+	Amount   int64   `json:"amount"` // копейки
 	Category string  `json:"category"`
 	SpentAt  string  `json:"spent_at"`
 	Comment  *string `json:"comment"`
 }
 
 type updateExpenseRequest struct {
-	Amount   *float64 `json:"amount"`
-	Category *string  `json:"category"`
-	SpentAt  *string  `json:"spent_at"`
-	Comment  *string  `json:"comment"`
+	Amount   *int64  `json:"amount"` // копейки
+	Category *string `json:"category"`
+	SpentAt  *string `json:"spent_at"`
+	Comment  *string `json:"comment"`
+	// commentSet: поле "comment" было в JSON (в т.ч. null = очистить).
+	commentSet bool
+}
+
+func (r *updateExpenseRequest) UnmarshalJSON(data []byte) error {
+	type alias updateExpenseRequest
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	var a alias
+	if err := json.Unmarshal(data, &a); err != nil {
+		return err
+	}
+	*r = updateExpenseRequest(a)
+	_, r.commentSet = raw["comment"]
+	return nil
 }
 
 func toDTO(e *domain.Expense) expenseDTO {
@@ -191,7 +208,7 @@ func (h *ExpensesHandler) Sum(w http.ResponseWriter, r *http.Request) {
 		writeRepoError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"sum": sum, "currency": "RUB"})
+	writeJSON(w, http.StatusOK, map[string]any{"sum": sum, "currency": "RUB", "unit": "kopecks"})
 }
 
 func (h *ExpensesHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
@@ -268,7 +285,12 @@ func (h *ExpensesHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	in := domain.UpdateExpense{Amount: req.Amount, Category: req.Category, Comment: req.Comment}
+	in := domain.UpdateExpense{
+		Amount:     req.Amount,
+		Category:   req.Category,
+		Comment:    req.Comment,
+		CommentSet: req.commentSet,
+	}
 	if req.Amount != nil && *req.Amount <= 0 {
 		writeError(w, http.StatusBadRequest, "amount must be positive")
 		return

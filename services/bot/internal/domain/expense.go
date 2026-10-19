@@ -9,7 +9,7 @@ import (
 type Expense struct {
 	ID        uuid.UUID
 	UserID    int64
-	Amount    float64
+	Amount    int64 // копейки
 	Category  string
 	SpentAt   time.Time
 	Comment   *string
@@ -19,17 +19,19 @@ type Expense struct {
 
 type CreateExpense struct {
 	UserID   int64
-	Amount   float64
+	Amount   int64 // копейки
 	Category string
 	SpentAt  time.Time
 	Comment  *string
 }
 
 type UpdateExpense struct {
-	Amount   *float64
+	Amount   *int64 // копейки
 	Category *string
 	SpentAt  *time.Time
-	Comment  *string
+	// Comment — новое значение (nil = SQL NULL), применяется только если CommentSet.
+	Comment    *string
+	CommentSet bool
 }
 
 // ListFilter — фильтры списка трат.
